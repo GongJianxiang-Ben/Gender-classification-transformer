@@ -69,11 +69,11 @@ def main():
     parser.add_argument("--img_dir",     type=str, required=True)
     parser.add_argument("--attr_file",   type=str, required=True)
     parser.add_argument("--split_file",  type=str, required=True)
-    parser.add_argument("--checkpoint",  type=str, required=True)
+    parser.add_argument("--checkpoint",  type=str, default=None)
     parser.add_argument("--epochs",      type=int, default=10)
     parser.add_argument("--batch_size",  type=int, default=64)
     parser.add_argument("--lr",          type=float, default=1e-4)
-    parser.add_argument("--output",      type=str, default="celeba_finetuned.pth")
+    parser.add_argument("--output",      type=str, default="celeba_scratch.pth")
     parser.add_argument("--seed",        type=int, default=42)
     parser.add_argument("--num_workers", type=int, default=4)
     args = parser.parse_args()
@@ -112,9 +112,16 @@ def main():
                               num_workers=args.num_workers, pin_memory=True)
 
     model = ResNet(img_channels=3, num_layers=18, block=BasicBlock, num_classes=2)
-    state = torch.load(args.checkpoint, map_location="cpu")
-    model.load_state_dict(state)
-    print(f"Loaded Adience checkpoint: {args.checkpoint}")
+
+    if args.checkpoint:
+        state = torch.load(args.checkpoint, map_location="cpu")
+        if isinstance(state, dict) and "state_dict" in state:
+            state = state["state_dict"]
+        model.load_state_dict(state, strict=False)
+        print(f"Loaded checkpoint: {args.checkpoint}")
+    else:
+        print("Training from scratch")
+
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)

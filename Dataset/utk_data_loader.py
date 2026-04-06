@@ -27,6 +27,8 @@ UTKFace gender encoding: male=0,   female=1  ← opposite!
 
 Set `align_with_adience=True` (default) to flip gender labels
 so they match Adience convention (female=0, male=1).
+
+!!!!!Use Aligned&Cropped Faces
 """
 
 import os

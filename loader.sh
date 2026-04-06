@@ -20,5 +20,5 @@ python Vit-model-loader.py \
   --attr_folder ./"label txt" \
   --dataset adience\
   --start ./checkpoints/Vit-Adience-post-train.ckpt\
-  --epochs 50 \
+  --model_name deformConv\
   --batch_size 64 

@@ -21,14 +21,15 @@ parser.add_argument("--dataset",  type=str, required=True)
 #which dataset to use for testing
 parser.add_argument("--start",  type=str, required=True) 
 #the checkpoint to start from
-parser.add_argument("--epochs",      type=int, default=50)
+parser.add_argument("--model_name",  type=str, required=True) 
+#the model type to use
 parser.add_argument("--batch_size",  type=int, default=64)
 parser.add_argument("--seed",        type=int, default=42)
 parser.add_argument("--num_workers", type=int, default=4)
 args = parser.parse_args()
 
 
-
+#use model.model to extract the ViTForImageClassification model from class
 model=ViT.load_from_checkpoint(args.start)
 train_tf = transforms.Compose([
         transforms.Resize((224, 224)),

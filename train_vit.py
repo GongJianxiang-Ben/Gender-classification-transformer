@@ -30,7 +30,7 @@ class ViT(pl.LightningModule):
 
     
     def forward(self, pixel_values):
-        return self.model(pixel_values).logits
+        return self.model(pixel_values)
 
     def training_step(self, batch, batch_idx):
         if(batch_idx%40==0):
@@ -38,7 +38,7 @@ class ViT(pl.LightningModule):
         x = batch["pixel_values"]
         y = batch["labels"]
 
-        logits = self(x)
+        logits = self(x).logits
         loss = self.criterion(logits, y)
 
         self.log("train_loss", loss, prog_bar=True)
@@ -50,7 +50,7 @@ class ViT(pl.LightningModule):
         x = batch["pixel_values"]
         y = batch["labels"]
 
-        logits = self(x)
+        logits = self(x).logits
         loss = self.criterion(logits, y)
 
         acc = (logits.argmax(dim=1) == y).float().mean()
@@ -187,7 +187,7 @@ if __name__=="__main__":
             pixel_values = batch['pixel_values'].to(device)
             labels = batch['labels'].to(device)
             
-            outputs = model(pixel_values)                   
+            outputs = model(pixel_values).logits                   
             preds = outputs.argmax(dim=1)
             
             total_correct += (preds == labels).sum().item()

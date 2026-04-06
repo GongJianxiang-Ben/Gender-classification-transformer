@@ -27,8 +27,6 @@ UTKFace gender encoding: male=0,   female=1  ← opposite!
 
 Set `align_with_adience=True` (default) to flip gender labels
 so they match Adience convention (female=0, male=1).
-
-!!!!!Use Aligned&Cropped Faces
 """
 
 import os
@@ -164,20 +162,34 @@ class UTKFaceDataset(Dataset):
 if __name__ == '__main__':
     """
     Cross-dataset gender evaluation:
-    model trained on Adience → tested on full UTKFace
+    model trained on Adience → tested on 20% of UTKFace (fixed split, seed=42)
     """
     import torch
-    from torch.utils.data import DataLoader
+    from torch.utils.data import DataLoader, Subset
+    from sklearn.model_selection import train_test_split
 
     IMG_DIR    = '/path/to/UTKFace'
     MODEL_PATH = '/path/to/final_model.pth'
     BATCH_SIZE = 64
+    TEST_RATIO = 0.2   # 20% as test set
+    SEED       = 42    # fixed seed for reproducibility
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    ds     = UTKFaceDataset(img_dir=IMG_DIR, align_with_adience=True)
-    loader = DataLoader(ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+    # load full dataset
+    full_ds = UTKFaceDataset(img_dir=IMG_DIR, align_with_adience=True)
 
+    # fixed 20% split — same split every run due to fixed seed
+    indices = list(range(len(full_ds)))
+    _, test_indices = train_test_split(
+        indices, test_size=TEST_RATIO, random_state=SEED
+    )
+    test_ds = Subset(full_ds, test_indices)
+    print(f"Test set size: {len(test_ds)} images ({TEST_RATIO*100:.0f}% of {len(full_ds)})")
+
+    loader = DataLoader(test_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+
+    # load model
     model = torch.load(MODEL_PATH, map_location=device)
     model.eval()
 

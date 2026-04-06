@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Gender-classification-transformer
 ## Environment configuration - PyTorch 2.1.2 + CUDA 11.8
 
@@ -16,3 +17,6 @@ pip install "transformers<4.40"
 pip install torchmetrics
 pip install pillow
 pip install "numpy<2"
+=======
+# Gender-classification-transformer
+>>>>>>> 527815f (Initial commit)

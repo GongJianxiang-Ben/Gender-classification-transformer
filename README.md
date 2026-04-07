@@ -16,4 +16,4 @@ pip install "transformers<4.40"
 pip install torchmetrics
 pip install pillow
 pip install "numpy<2"
-
+pip install scikit-learn

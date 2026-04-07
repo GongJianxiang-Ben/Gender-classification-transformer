@@ -2,7 +2,7 @@ from transformers import ViTConfig, ViTForImageClassification
 from transformers import ViTImageProcessor
 import torch.nn as nn
 import torch.optim as optim
-
+import json
 from torch.utils.data import DataLoader
 import lightning as pl
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -15,7 +15,7 @@ from torchvision import transforms
 import random
 from pathlib import  Path
 from torch.utils.data import ConcatDataset
-
+import os,sys
 
 class ViT(pl.LightningModule):
     def __init__(self, config,epochs, lr=1e-4):
@@ -97,7 +97,7 @@ if __name__=="__main__":
     parser.add_argument("--seed",        type=int, default=42)
     parser.add_argument("--num_workers", type=int, default=4)
     args = parser.parse_args()
-
+    print(json.dumps(vars(args), indent=4))
     seed_everything(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     feature_extractor = ViTImageProcessor.from_pretrained('rizvandwiki/gender-classification')
@@ -121,11 +121,28 @@ if __name__=="__main__":
         train_ds=EmptyDataset()
         val_ds=CustomImageDataset(img_dir="./aligned",
                             txt_file=paths[0],transform=val_tf)
-        for p in paths[:]:
+        for p in paths[1:]:
             train_ds=ConcatDataset([train_ds,CustomImageDataset(img_dir="./aligned",
                             txt_file=p,transform=train_tf)])
         test_loader  = DataLoader(val_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
                               num_workers=args.num_workers, pin_memory=True)
+        paths1 = set()
+        for ds in train_ds.datasets:
+            # 确保跳过你那个 EmptyDataset (如果有的话)
+            if hasattr(ds, 'samples'):
+                for sample in ds.samples:
+                    paths1.add(os.path.abspath(sample[0]))
+        paths2 = set(os.path.abspath(sample[0]) for sample in val_ds.samples)
+        
+        # 寻找交集
+        intersection = paths1.intersection(paths2)
+        
+        
+        if len(intersection) == 0:
+            print(f"no overlapping between train and valdation data")
+        else:
+            print(f"find {len(intersection)} overlapping samples")
+            sys.exit()
     elif(args.dataset=="celebA"):
         train_ds = CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=0, transform=train_tf)
         val_ds   = CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=1, transform=val_tf)
@@ -133,7 +150,15 @@ if __name__=="__main__":
                             txt_file=paths[0],transform=val_tf)
         test_loader  = DataLoader(test_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
                               num_workers=args.num_workers, pin_memory=True)
-    
+        train_ids = set(train_ds.data['image_id'])
+        test_ids = set(val_ds.data['image_id'])
+
+        intersection = train_ids.intersection(test_ids)
+        if len(intersection) == 0:
+            print(f"no overlapping between train and valdation data")
+        else:
+            print(f"find {len(intersection)} overlapping samples")
+            sys.exit()
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size,  collate_fn=collator,shuffle=True,
                               num_workers=args.num_workers, pin_memory=True)

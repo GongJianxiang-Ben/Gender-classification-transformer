@@ -5,6 +5,7 @@ from model_dilatedConv import CustomDilatedViT
 from adience_data_loader import CustomImageDataset,ImageClassificationCollator
 from Dataset.utk_data_loader import UTKFaceDataset
 import argparse
+from sklearn.model_selection import train_test_split
 
 
 feature_extractor = AutoImageProcessor.from_pretrained("rizvandwiki/gender-classification")
@@ -12,7 +13,7 @@ feature_extractor = AutoImageProcessor.from_pretrained("rizvandwiki/gender-class
 from pathlib import  Path
 import math
 from torch.utils.data import ConcatDataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 import torch
 from torchvision import transforms
 from Dataset.utk_data_loader import UTKFaceDataset
@@ -32,6 +33,8 @@ parser.add_argument("--seed",        type=int, default=42)
 parser.add_argument("--num_workers", type=int, default=4)
 args = parser.parse_args()
 
+TEST_RATIO = 0.2   # 20% as test set
+SEED       = 42    # fixed seed for reproducibility
 
 #use model.model to extract the ViTForImageClassification model from class
 if(args.model_name=="ViT"): 
@@ -61,6 +64,14 @@ if(args.dataset=="adience"):
                           txt_file=paths[0],transform=val_tf)
 elif(args.dataset=="UTK"):
     test_ds= UTKFaceDataset(img_dir=args.img_dir, align_with_adience=True)
+    full_ds = UTKFaceDataset(img_dir=args.img_dir, align_with_adience=True)
+
+    # fixed 20% split — same split every run due to fixed seed
+    indices = list(range(len(full_ds)))
+    _, test_indices = train_test_split(
+        indices, test_size=TEST_RATIO, random_state=SEED
+    )
+    test_ds = Subset(full_ds, test_indices)
 elif(args.dataset=="celebA"):
     test_ds=CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=2, transform=val_tf)
 collator = ImageClassificationCollator(feature_extractor)

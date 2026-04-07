@@ -1,5 +1,9 @@
 from torch.utils.data import Dataset
+import torch
+import os
+from PIL import Image
 class CustomImageDataset(Dataset):
+    #initialize with image dir path and label txt path
     def __init__(self, img_dir, txt_file, transform=None):
         
         self.img_dir = img_dir
@@ -65,3 +69,21 @@ class EmptyDataset(Dataset):
     
     def __getitem__(self, index):
         raise IndexError("Empty dataset cannot be indexed")
+    
+class ImageClassificationCollator:
+    def __init__(self, feature_extractor):
+        self.feature_extractor = feature_extractor
+        """self.pre_transform = Compose([
+            Resize(256),      # 缩放短边到 256
+            CenterCrop(224)   # 中心裁剪 224
+        ])"""
+
+    def __call__(self, batch):
+
+        images = [x[0] for x in batch]
+
+        encodings = self.feature_extractor(images,
+                                            return_tensors='pt')
+
+        encodings['labels'] = torch.tensor([x[1] for x in batch], dtype=torch.long)
+        return encodings

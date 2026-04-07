@@ -1,7 +1,9 @@
 from transformers import AutoImageProcessor
 from train_vit import ViT
+from model_deformConv import CustomDeformViT
+from model_dilatedConv import CustomDilatedViT
 from adience_data_loader import CustomImageDataset,ImageClassificationCollator
-
+from Dataset.utk_data_loader import UTKFaceDataset
 import argparse
 
 
@@ -13,6 +15,8 @@ from torch.utils.data import ConcatDataset
 from torch.utils.data import DataLoader
 import torch
 from torchvision import transforms
+from Dataset.utk_data_loader import UTKFaceDataset
+from celebA_data_loader import CelebAGenderDataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--img_dir",     type=str, required=True)
@@ -30,7 +34,12 @@ args = parser.parse_args()
 
 
 #use model.model to extract the ViTForImageClassification model from class
-model=ViT.load_from_checkpoint(args.start)
+if(args.model_name=="ViT"): 
+    model=ViT.load_from_checkpoint(args.start)
+elif(args.model_name=="deformConv"):
+    model=CustomDeformViT.load_from_checkpoint(args.start)
+elif(args.model_name=="dilatedConv"):
+    model=CustomDilatedViT.load_from_checkpoint(args.start)
 train_tf = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(),
@@ -48,11 +57,12 @@ paths = [str(p) for p in folder.iterdir()]
 K = len(paths)
 avg_acc=0
 if(args.dataset=="adience"):
-    test_ds=CustomImageDataset(img_dir="./aligned",
+    test_ds=CustomImageDataset(img_dir=args.img_dir,
                           txt_file=paths[0],transform=val_tf)
 elif(args.dataset=="UTK"):
-    pass
-#test_ds=CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=2, transform=val_tf)
+    test_ds= UTKFaceDataset(img_dir=args.img_dir, align_with_adience=True)
+elif(args.dataset=="celebA"):
+    test_ds=CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=2, transform=val_tf)
 collator = ImageClassificationCollator(feature_extractor)
 
 test_loader = DataLoader(test_ds, batch_size=args.batch_size, collate_fn=collator, 
@@ -60,6 +70,7 @@ test_loader = DataLoader(test_ds, batch_size=args.batch_size, collate_fn=collato
 total_correct = 0
 total_samples = 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.eval()
 with torch.no_grad():          
     for batch_idx, batch in enumerate(test_loader):
         if(batch_idx%40==0):
@@ -67,7 +78,7 @@ with torch.no_grad():
         pixel_values = batch['pixel_values'].to(device)  
         labels = batch['labels'].to(device)
         
-        outputs = model(pixel_values)                    
+        outputs = model(pixel_values).logits                    
         preds = outputs.argmax(dim=1)
         
         total_correct += (preds == labels).sum().item()

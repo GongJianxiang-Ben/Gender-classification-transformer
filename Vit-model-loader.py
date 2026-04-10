@@ -63,15 +63,14 @@ if(args.dataset=="adience"):
     test_ds=CustomImageDataset(img_dir=args.img_dir,
                           txt_file=paths[0],transform=val_tf)
 elif(args.dataset=="UTK"):
-    test_ds= UTKFaceDataset(img_dir=args.img_dir, align_with_adience=True)
     full_ds = UTKFaceDataset(img_dir=args.img_dir, align_with_adience=True)
-
+    test_ds=full_ds
     # fixed 20% split — same split every run due to fixed seed
-    indices = list(range(len(full_ds)))
+    """indices = list(range(len(full_ds)))
     _, test_indices = train_test_split(
         indices, test_size=TEST_RATIO, random_state=SEED
     )
-    test_ds = Subset(full_ds, test_indices)
+    test_ds = Subset(full_ds, test_indices)"""
 elif(args.dataset=="celebA"):
     test_ds=CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=2, transform=val_tf)
 collator = ImageClassificationCollator(feature_extractor)

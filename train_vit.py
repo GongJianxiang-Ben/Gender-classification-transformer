@@ -3,9 +3,9 @@ from transformers import ViTImageProcessor
 import torch.nn as nn
 import torch.optim as optim
 import json
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader,WeightedRandomSampler
 import lightning as pl
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import ModelCheckpoint,EarlyStopping
 import torch
 from adience_data_loader import CustomImageDataset,EmptyDataset
 from adience_data_loader import ImageClassificationCollator
@@ -24,7 +24,7 @@ class ViT(pl.LightningModule):
         #initialize from designed structure 
         self.model = ViTForImageClassification(config)
 
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
         self.lr = lr
         self.epochs=epochs
 
@@ -59,7 +59,7 @@ class ViT(pl.LightningModule):
         self.log("val_acc", acc, prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer=torch.optim.AdamW(self.parameters(), lr=self.lr)
+        optimizer=torch.optim.AdamW(self.parameters(), lr=self.lr,weight_decay=0.05)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max=self.epochs-20,
@@ -92,6 +92,7 @@ if __name__=="__main__":
     parser.add_argument("--start",  type=str, required=True)  
     #the checkpoint to start from, or start from scratch with input "scratch"
     parser.add_argument("--epochs",      type=int, default=50)
+    parser.add_argument("--dilated_size",type=int, default=2)
     parser.add_argument("--batch_size",  type=int, default=64)
     parser.add_argument("--lr",          type=float, default=1e-4)
     parser.add_argument("--seed",        type=int, default=42)
@@ -104,6 +105,7 @@ if __name__=="__main__":
     train_tf = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(),
+        transforms.RandAugment(num_ops=2, magnitude=9),
         transforms.RandomRotation(10),
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
         
@@ -125,6 +127,8 @@ if __name__=="__main__":
             train_ds=ConcatDataset([train_ds,CustomImageDataset(img_dir="./aligned",
                             txt_file=p,transform=train_tf)])
         test_loader  = DataLoader(val_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
+                              num_workers=args.num_workers, pin_memory=True)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size,  collate_fn=collator,shuffle=True,
                               num_workers=args.num_workers, pin_memory=True)
         paths1 = set()
         for ds in train_ds.datasets:
@@ -150,6 +154,8 @@ if __name__=="__main__":
                             txt_file=paths[0],transform=val_tf)
         test_loader  = DataLoader(test_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
                               num_workers=args.num_workers, pin_memory=True)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size,  collate_fn=collator,shuffle=True,
+                              num_workers=args.num_workers, pin_memory=True)
         train_ids = set(train_ds.data['image_id'])
         test_ids = set(val_ds.data['image_id'])
 
@@ -159,9 +165,42 @@ if __name__=="__main__":
         else:
             print(f"find {len(intersection)} overlapping samples")
             sys.exit()
+    elif(args.dataset=="both"):
+        adience_subsets = []
+        for p in paths[1:]:
+            subset = CustomImageDataset(
+                img_dir="./aligned",
+                txt_file=p,
+                transform=train_tf  
+            )
+            adience_subsets.append(subset)
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size,  collate_fn=collator,shuffle=True,
+        adience_ds = ConcatDataset(adience_subsets)
+        size_adience = len(adience_ds)
+        celebA_ds=CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=0, transform=train_tf)
+        size_celeba = len(celebA_ds)
+        train_ds=ConcatDataset([adience_ds,celebA_ds])
+        val_ds=CustomImageDataset(img_dir="./aligned",
+                            txt_file=paths[0],transform=val_tf)
+        test_loader  = DataLoader(val_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
                               num_workers=args.num_workers, pin_memory=True)
+        total_size = size_celeba + size_adience
+
+        # give adience higher weight in ds
+        weights = torch.DoubleTensor([1.0 / size_adience] * size_adience+[1.0 / size_celeba] * size_celeba )
+        sampler = WeightedRandomSampler(weights, num_samples=total_size, replacement=True)
+
+        train_loader = DataLoader(
+            train_ds,
+            batch_size=args.batch_size,
+            sampler=sampler, # use sampler is already random shuffle
+            collate_fn=collator,
+            num_workers=args.num_workers,
+            pin_memory=True
+        )
+
+
+    
     val_loader   = DataLoader(val_ds,   batch_size=args.batch_size,collate_fn=collator, shuffle=False,
                               num_workers=args.num_workers, pin_memory=True)
     
@@ -170,12 +209,16 @@ if __name__=="__main__":
         patch_size=16,
         num_channels=3,
         
-        hidden_size=768,        
+        hidden_size=384,        
         num_hidden_layers=12,    
         num_attention_heads=12,  
         intermediate_size=3072, 
         
-        num_labels=2
+        num_labels=2,
+
+        hidden_dropout_prob=0.1,         
+        attention_probs_dropout_prob=0.1,  
+        drop_path_rate=0.1,
     )
     if(args.start=="scratch"):
         model=ViT(config,args.epochs)
@@ -192,10 +235,17 @@ if __name__=="__main__":
         auto_insert_metric_name=False,
         verbose=True
     )
+    early_stop_callback = EarlyStopping(
+        monitor='val_acc',      
+        min_delta=0.00,         
+        patience=3,             
+        verbose=True,           
+        mode='max'              
+    )
     model = model.to(device)
     trainer = pl.Trainer(accelerator='gpu', devices=1, precision=16, max_epochs=args.epochs,
     enable_progress_bar=False,log_every_n_steps=1,val_check_interval=1.0,
-    check_val_every_n_epoch=3,callbacks=[checkpoint_callback])
+    check_val_every_n_epoch=3,callbacks=[checkpoint_callback,early_stop_callback])
     print("Starting Trainer.fit()...", flush=True)
     
     trainer.fit(model, train_loader, val_loader)

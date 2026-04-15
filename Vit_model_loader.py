@@ -1,6 +1,6 @@
 from transformers import AutoImageProcessor
 from transformers import  AutoModelForImageClassification
-from train_vit import ViT
+from Vit import ViT
 from model_deformConv import CustomDeformViT
 from model_dilatedConv import CustomDilatedViT
 from model_addCNN import EnhancedViTForImageClassification

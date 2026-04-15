@@ -50,14 +50,15 @@ def tester(model,test_loader):
     )
 
     df = pd.DataFrame(report).T
+
     df = df[['precision', 'recall', 'f1-score', 'support']]
     df.columns = ['Precision', 'Recall', 'F1-Score', 'Support']
 
+    df = df.drop(['accuracy', 'macro avg'], errors='ignore')
 
-    df.loc['accuracy', ['Precision', 'Recall', 'F1-Score']] = None
-    df = df.rename(index={'accuracy': 'Accuracy', 
-                        'macro avg': 'Macro avg', 
-                        'weighted avg': 'Weighted avg'})
+
+    df = df.rename(index={'weighted avg': 'Weighted_avg'})
+    
 
     print(df.round(4))
 def trainer(model_name):

@@ -5,7 +5,7 @@ from celebA_data_loader import CelebAGenderDataset
 from torch.utils.data import ConcatDataset
 from adience_data_loader import CustomImageDataset,EmptyDataset,ImageClassificationCollator
 from torchvision.transforms import CenterCrop, Resize, Compose
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader,WeightedRandomSampler
 import pandas as pd
 from lightning.pytorch.callbacks import ModelCheckpoint,EarlyStopping
 from sklearn.metrics import classification_report, accuracy_score
@@ -21,6 +21,7 @@ def seed_everything(seed=42):
     torch.cuda.manual_seed_all(seed)
     pl.seed_everything(seed)
 def tester(model,test_loader):
+    print(model)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
     model.to(device)
@@ -62,7 +63,7 @@ def tester(model,test_loader):
 
     print(df.round(4))
 def trainer(model_name):
-    from train_vit import ViT
+    from Vit import ViT
     from model_deformConv import CustomDeformViT
     from model_dilatedConv import CustomDilatedViT
     from model_addCNN import EnhancedViTForImageClassification
@@ -136,32 +137,86 @@ def trainer(model_name):
     if(args.dataset=="adience"):
         
         train_ds=EmptyDataset()
-        val_ds=CustomImageDataset(img_dir=args.img_dir,
+        val_ds=CustomImageDataset(img_dir="./aligned",
                             txt_file=paths[0],transform=val_tf)
-        for p in paths[1:]:
-            train_ds=ConcatDataset([train_ds,CustomImageDataset(img_dir=args.img_dir,
-                            txt_file=p,transform=train_tf)])
-        test_loader  = DataLoader(val_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
-                              num_workers=args.num_workers, pin_memory=True)
-    elif(args.dataset=="celebA"):
-        train_ds = CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=0, transform=train_tf)
-        val_ds   = CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=1, transform=val_tf)
-        test_ds   = CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=2, transform=val_tf)
-        test_loader  = DataLoader(test_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
-                              num_workers=args.num_workers, pin_memory=True)
-    elif(args.dataset=="both"):
-        train_ds=EmptyDataset()
         for p in paths[1:]:
             train_ds=ConcatDataset([train_ds,CustomImageDataset(img_dir="./aligned",
                             txt_file=p,transform=train_tf)])
-        train_ds=ConcatDataset([train_ds,CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=0, transform=train_tf)])
+        test_loader  = DataLoader(val_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
+                              num_workers=args.num_workers, pin_memory=True)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size,  collate_fn=collator,shuffle=True,
+                              num_workers=args.num_workers, pin_memory=True)
+        paths1 = set()
+        for ds in train_ds.datasets:
+            
+            if hasattr(ds, 'samples'):
+                for sample in ds.samples:
+                    paths1.add(os.path.abspath(sample[0]))
+        paths2 = set(os.path.abspath(sample[0]) for sample in val_ds.samples)
+        
+        
+        intersection = paths1.intersection(paths2)
+        
+        
+        if len(intersection) == 0:
+            print(f"no overlapping between train and valdation data")
+        else:
+            print(f"find {len(intersection)} overlapping samples")
+            sys.exit()
+    elif(args.dataset=="celebA"):
+        train_ds = CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=0, transform=train_tf)
+        val_ds   = CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=1, transform=val_tf)
+        test_ds  = CustomImageDataset(img_dir="./aligned",
+                            txt_file=paths[0],transform=val_tf)
+        test_loader  = DataLoader(test_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
+                              num_workers=args.num_workers, pin_memory=True)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size,  collate_fn=collator,shuffle=True,
+                              num_workers=args.num_workers, pin_memory=True)
+        train_ids = set(train_ds.data['image_id'])
+        test_ids = set(val_ds.data['image_id'])
+
+        intersection = train_ids.intersection(test_ids)
+        if len(intersection) == 0:
+            print(f"no overlapping between train and valdation data")
+        else:
+            print(f"find {len(intersection)} overlapping samples")
+            sys.exit()
+    elif(args.dataset=="both"):
+        adience_subsets = []
+        for p in paths[1:]:
+            subset = CustomImageDataset(
+                img_dir="./aligned",
+                txt_file=p,
+                transform=train_tf  
+            )
+            adience_subsets.append(subset)
+
+        adience_ds = ConcatDataset(adience_subsets)
+        size_adience = len(adience_ds)
+        celebA_ds=CelebAGenderDataset(args.img_dir, args.attr_file, args.split_file, split=0, transform=train_tf)
+        size_celeba = len(celebA_ds)
+        train_ds=ConcatDataset([adience_ds,celebA_ds])
         val_ds=CustomImageDataset(img_dir="./aligned",
                             txt_file=paths[0],transform=val_tf)
         test_loader  = DataLoader(val_ds,  batch_size=args.batch_size,collate_fn=collator, shuffle=False,
-                              num_workers=args.num_workers, pin_memory=True) 
-
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size,  collate_fn=collator,shuffle=True,
                               num_workers=args.num_workers, pin_memory=True)
+        total_size = size_celeba + size_adience
+
+        # give adience higher weight in ds
+        weights = torch.DoubleTensor([1.0 / size_adience] * size_adience+[1.0 / size_celeba] * size_celeba )
+        sampler = WeightedRandomSampler(weights, num_samples=total_size, replacement=True)
+
+        train_loader = DataLoader(
+            train_ds,
+            batch_size=args.batch_size,
+            sampler=sampler, # use sampler is already random shuffle
+            collate_fn=collator,
+            num_workers=args.num_workers,
+            pin_memory=True
+        )
+
+
+    
     val_loader   = DataLoader(val_ds,   batch_size=args.batch_size,collate_fn=collator, shuffle=False,
                               num_workers=args.num_workers, pin_memory=True)
     

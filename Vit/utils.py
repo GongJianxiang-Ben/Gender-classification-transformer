@@ -64,12 +64,12 @@ def tester(model,test_loader):
     print(df.round(4))
 def trainer(model_name):
     from Vit import ViT
-    from model_deformConv import CustomDeformViT
-    from model_dilatedConv import CustomDilatedViT
-    from model_addCNN import EnhancedViTForImageClassification
-    from model_VPTshallow import ShallowVPTViTForImageClassification
-    from model_VPTdeep import DeepVPTViTForImageClassification
-    from model_depth import DeepViT
+    from Vit_deformConv import CustomDeformViT
+    from Vit_dilatedConv import CustomDilatedViT
+    from Vit_addCNN import EnhancedViTForImageClassification
+    from Vit_VPTshallow import ShallowVPTViTForImageClassification
+    from Vit_VPTdeep import DeepVPTViTForImageClassification
+    from Vit_depth import DeepViT
     parser = argparse.ArgumentParser()
     parser.add_argument("--img_dir",     type=str, required=True)
     parser.add_argument("--attr_file",   type=str, required=True)

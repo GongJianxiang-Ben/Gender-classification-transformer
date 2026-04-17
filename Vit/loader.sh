@@ -15,10 +15,12 @@ module load anaconda
 eval "$(conda shell.bash hook)"
 conda activate deeplearning
 
-python Vit-model-loader.py \
-  --img_dir ./aligned \
+python ./"gender classification"/Vit_model_loader.py \
+  --img_dir ./crop_part1\
   --attr_folder ./"label txt" \
-  --dataset adience\
-  --start ./checkpoints/Vit-Adience-post-train.ckpt\
-  --model_name deformConv\
+  --dataset UTK\
+  --start ./checkpoints-768/addCNN/vit-best-08-0.0000.ckpt\
+  --model_name addCNN\
+  --backbone online\
+  --address rizvandwiki/gender-classification\
   --batch_size 64 

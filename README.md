@@ -24,7 +24,9 @@ pip install "numpy<2"
 pip install scikit-learn
 ```
 
-## Running tests
+## ViT
+
+### Running tests
 
 The test script evaluates the model using a saved checkpoint.
 
@@ -46,7 +48,7 @@ Or submit the batch job:
 sbatch train.sh
 ```
 
-### Required arguments for testing
+#### Required arguments for testing
 
 - `--img_dir`: path to the image folder
 - `--attr_folder`: path to the attribute folder; use `./` if not needed
@@ -59,13 +61,13 @@ sbatch train.sh
   - `local`: local checkpoint path
   - `None`: not used
 
-### Optional testing arguments
+#### Optional testing arguments
 
 - `--batch_size`: default `64`
 - `--seed`: default `42`
 - `--num_workers`: default `4`
 
-## Training the model
+### Training the model
 
 The training script uses a dataset split and saves checkpoints.
 
@@ -90,7 +92,7 @@ Or submit the batch job:
 sbatch loader.sh
 ```
 
-### Required arguments for training
+#### Required arguments for training
 
 - `--img_dir`: path to the image folder
 - `--attr_folder`: path to the attribute folder; use `./` if not needed
@@ -103,7 +105,7 @@ sbatch loader.sh
   - `local`: use a local backbone checkpoint (ViT only)
   - path to a checkpoint file: continue training from that checkpoint
 
-### Optional training arguments
+#### Optional training arguments
 
 - `--import_from`:
   - if `--start local`: path to local checkpoint
@@ -113,3 +115,12 @@ sbatch loader.sh
 - `--lr`: learning rate, default `1e-4`
 - `--seed`: default `42`
 - `--num_workers`: default `4`
+
+### CNN
+
+> Placeholder for CNN model usage and instructions.
+
+### Multi-task ViT
+
+> Placeholder for multi-task ViT model usage and instructions.
+

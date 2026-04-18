@@ -7,7 +7,8 @@ channels:
 dependencies:
   - python=3.10
   - pip
-  # PyTorch（有 NVIDIA GPU 用这行；纯 CPU 则把 pytorch-cuda 删掉）
+  - numpy=1.26.4
+  - tqdm
   - pytorch=2.2
   - torchvision
   - pytorch-cuda=11.8

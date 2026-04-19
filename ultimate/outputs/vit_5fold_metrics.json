@@ -1,0 +1,70 @@
+{
+  "arch": "vit",
+  "head": "simple dual linear heads",
+  "multitask_lambda": 0.5,
+  "pretraining_source": "torchvision::IMAGENET1K_V1",
+  "folds": [
+    {
+      "fold": 0,
+      "best_epoch": 50,
+      "checkpoint": "/export/home3/n2500485g/Code/dlj/ultimate/outputs/vit/fold_0.pt",
+      "gender_acc": 0.9279099106788635,
+      "gender_f1": 0.9286068418443233,
+      "age_acc": 0.5331664681434631,
+      "age_1off_acc": 0.9261577129364014,
+      "age_mae": 0.5622027516365051
+    },
+    {
+      "fold": 1,
+      "best_epoch": 50,
+      "checkpoint": "/export/home3/n2500485g/Code/dlj/ultimate/outputs/vit/fold_1.pt",
+      "gender_acc": 0.9157631397247314,
+      "gender_f1": 0.9010127409343351,
+      "age_acc": 0.4370308518409729,
+      "age_1off_acc": 0.8740617036819458,
+      "age_mae": 0.717820405960083
+    },
+    {
+      "fold": 2,
+      "best_epoch": 50,
+      "checkpoint": "/export/home3/n2500485g/Code/dlj/ultimate/outputs/vit/fold_2.pt",
+      "gender_acc": 0.9199743866920471,
+      "gender_f1": 0.906785980611484,
+      "age_acc": 0.531049907207489,
+      "age_1off_acc": 0.9154929518699646,
+      "age_mae": 0.5883482694625854
+    },
+    {
+      "fold": 3,
+      "best_epoch": 50,
+      "checkpoint": "/export/home3/n2500485g/Code/dlj/ultimate/outputs/vit/fold_3.pt",
+      "gender_acc": 0.9176542162895203,
+      "gender_f1": 0.9057391304347826,
+      "age_acc": 0.5019750595092773,
+      "age_1off_acc": 0.9097538590431213,
+      "age_mae": 0.6061987280845642
+    },
+    {
+      "fold": 4,
+      "best_epoch": 50,
+      "checkpoint": "/export/home3/n2500485g/Code/dlj/ultimate/outputs/vit/fold_4.pt",
+      "gender_acc": 0.9126269817352295,
+      "gender_f1": 0.9040484539368824,
+      "age_acc": 0.4626995623111725,
+      "age_1off_acc": 0.884179949760437,
+      "age_mae": 0.6925979852676392
+    }
+  ],
+  "summary": {
+    "gender_acc_mean": 0.9187857270240783,
+    "gender_acc_std": 0.005157715254451645,
+    "gender_f1_mean": 0.9092386295523615,
+    "gender_f1_std": 0.00987919829503703,
+    "age_acc_mean": 0.493184369802475,
+    "age_acc_std": 0.03792673042452976,
+    "age_1off_acc_mean": 0.901929235458374,
+    "age_1off_acc_std": 0.01961557915605625,
+    "age_mae_mean": 0.6334336280822754,
+    "age_mae_std": 0.06077798374533284
+  }
+}

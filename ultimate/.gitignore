@@ -1,8 +1,0 @@
-__pycache__/
-*.pyc
-.torch-cache/
-logs/
-*.log
-*.pt
-*.pth
-*.ckpt

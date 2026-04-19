@@ -2,3 +2,8 @@
 *.png
 *.jpeg
 __pycache__/
+*.pyc
+.torch-cache/
+logs/
+*.log
+*.pt

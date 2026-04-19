@@ -1,4 +1,4 @@
-from dlj.head.head.vit.vit import build_simple_model, run_training
+from vit import build_simple_model, run_training
 
 
 def main():

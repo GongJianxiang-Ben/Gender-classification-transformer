@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from dlj.head.head.vit.vit import build_vit_config, run_training
+from vit import build_vit_config, run_training
 from transformers import ViTForImageClassification
 
 

@@ -11,7 +11,7 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from tqdm.auto import tqdm
 from torchvision import transforms
 
-from dlj.head.head.cnn.resnet18 import BasicBlock, ResNet
+from resnet18 import BasicBlock, ResNet
 
 
 def seed_everything(seed=42):

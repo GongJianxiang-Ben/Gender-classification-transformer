@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/export/home2/deepni/dlj/cnn/resnet_simple.py", line 1, in <module>
+    from cnn.resnet import build_simple_model, run_training
+ModuleNotFoundError: No module named 'cnn'
+Traceback (most recent call last):
+  File "/export/home2/deepni/dlj/cnn/resnet_simple.py", line 1, in <module>
+    from cnn.resnet import build_simple_model, run_training
+ModuleNotFoundError: No module named 'cnn'

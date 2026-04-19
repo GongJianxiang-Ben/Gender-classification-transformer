@@ -9,7 +9,7 @@ This repository contains several stages of experiments for age and gender classi
 ## Repository Structure
 
 ```text
-dlj/
+repo_root/
 ├── Dataset/
 │   ├── aligned/
 │   ├── fold_0_data.txt
@@ -33,16 +33,18 @@ dlj/
 All code assumes the Adience dataset is prepared under:
 
 ```text
-Dataset/
-├── aligned/
-│   ├── user_id_1/
-│   ├── user_id_2/
-│   └── ...
-├── fold_0_data.txt
-├── fold_1_data.txt
-├── fold_2_data.txt
-├── fold_3_data.txt
-└── fold_4_data.txt
+repo_root/
+├── Dataset/
+│   ├── aligned/
+│   │   ├── user_id_1/
+│   │   ├── user_id_2/
+│   │   └── ...
+│   ├── fold_0_data.txt
+│   ├── fold_1_data.txt
+│   ├── fold_2_data.txt
+│   ├── fold_3_data.txt
+│   └── fold_4_data.txt
+└── ...
 ```
 
 ## Environment
@@ -67,10 +69,10 @@ conda activate sc4001
 All commands below assume:
 
 ```bash
-cd /path/to/dlj
+cd /path/to/Gender-classification-transformer
 ```
 
-This is important because different folders resolve paths relative to their own script locations.
+This is important because the repository root is the actual project root on GitHub.
 
 ## 1. Head Experiments
 
@@ -88,24 +90,24 @@ Simple head:
 
 ```bash
 python head/cnn/resnet_simple.py \
-  --data_dir /path/to/dlj \
-  --checkpoint /path/to/dlj/checkpoint/cnn/celeba_scratch.pth
+  --data_dir . \
+  --checkpoint checkpoint/cnn/celeba_scratch.pth
 ```
 
 Complex head:
 
 ```bash
 python head/cnn/resnet_complex.py \
-  --data_dir /path/to/dlj \
-  --checkpoint /path/to/dlj/checkpoint/cnn/celeba_scratch.pth
+  --data_dir . \
+  --checkpoint checkpoint/cnn/celeba_scratch.pth
 ```
 
 Complex BN + Dropout head:
 
 ```bash
 python head/cnn/resnet_complex_bn_dropout.py \
-  --data_dir /path/to/dlj \
-  --checkpoint /path/to/dlj/checkpoint/cnn/celeba_scratch.pth
+  --data_dir . \
+  --checkpoint checkpoint/cnn/celeba_scratch.pth
 ```
 
 ### ViT heads
@@ -114,31 +116,31 @@ Simple head:
 
 ```bash
 python head/vit/vit_simple.py \
-  --data_dir /path/to/dlj \
-  --checkpoint /path/to/dlj/checkpoint/vit/Vit-CelebA-pretrain.ckpt
+  --data_dir . \
+  --checkpoint checkpoint/vit/Vit-CelebA-pretrain.ckpt
 ```
 
 Complex head:
 
 ```bash
 python head/vit/vit_complex.py \
-  --data_dir /path/to/dlj \
-  --checkpoint /path/to/dlj/checkpoint/vit/Vit-CelebA-pretrain.ckpt
+  --data_dir . \
+  --checkpoint checkpoint/vit/Vit-CelebA-pretrain.ckpt
 ```
 
 Complex BN + Dropout head:
 
 ```bash
 python head/vit/vit_complex_bn_dropout.py \
-  --data_dir /path/to/dlj \
-  --checkpoint /path/to/dlj/checkpoint/vit/Vit-CelebA-pretrain.ckpt
+  --data_dir . \
+  --checkpoint checkpoint/vit/Vit-CelebA-pretrain.ckpt
 ```
 
-With `--data_dir /path/to/dlj`, these scripts resolve:
-- images from `/path/to/dlj/Dataset/aligned`
-- fold files from `/path/to/dlj/Dataset/`
-- checkpoints from `/path/to/dlj/checkpoint/`
-- logs under `/path/to/dlj/log/`
+With `--data_dir .`, these scripts resolve:
+- images from `./Dataset/aligned`
+- fold files from `./Dataset/`
+- checkpoints from `./checkpoint/`
+- logs under `./log/`
 
 ## 2. Multitask Experiments
 
@@ -223,8 +225,8 @@ Head CNN example:
 ```bash
 mkdir -p log/cnn
 nohup python head/cnn/resnet_simple.py \
-  --data_dir /path/to/dlj \
-  --checkpoint /path/to/dlj/checkpoint/cnn/celeba_scratch.pth \
+  --data_dir . \
+  --checkpoint checkpoint/cnn/celeba_scratch.pth \
   > log/cnn/resnet_simple_manual.log 2>&1 &
 ```
 
@@ -239,7 +241,7 @@ Ultimate CNN example:
 
 ```bash
 mkdir -p ultimate/logs ultimate/.torch-cache
-TORCH_HOME=/path/to/dlj/ultimate/.torch-cache \
+TORCH_HOME=./ultimate/.torch-cache \
 nohup python ultimate/train_ultimate.py --arch resnet --epochs 50 \
 > ultimate/logs/train_resnet18_ultimate.log 2>&1 &
 ```
@@ -248,7 +250,7 @@ Ultimate ViT example:
 
 ```bash
 mkdir -p ultimate/logs ultimate/.torch-cache
-TORCH_HOME=/path/to/dlj/ultimate/.torch-cache \
+TORCH_HOME=./ultimate/.torch-cache \
 nohup python ultimate/train_ultimate.py --arch vit --epochs 50 \
 > ultimate/logs/train_vit_ultimate.log 2>&1 &
 ```

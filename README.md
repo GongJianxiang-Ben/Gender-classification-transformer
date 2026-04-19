@@ -392,9 +392,8 @@ Common useful arguments:
 --checkpoint
 --img_dir
 --label_dir
-#since resnet_multi use two stage training, thus it should use --phase1_epochs and phase2_epochs instead of --epochs
-
 ```
+Since resnet_multi use two stage training, thus it should use --phase1_epochs and phase2_epochs instead of --epochs
 
 Examples:
 

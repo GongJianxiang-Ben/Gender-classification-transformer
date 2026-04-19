@@ -8,7 +8,7 @@ from Vit_VPTshallow import ShallowVPTViTForImageClassification
 from Vit_VPTdeep import DeepVPTViTForImageClassification
 from Vit_depth import DeepViT
 from adience_data_loader import CustomImageDataset,ImageClassificationCollator
-from Dataset.utk_data_loader import UTKFaceDataset
+from utk_data_loader import UTKFaceDataset
 import argparse
 from sklearn.model_selection import train_test_split
 
@@ -21,7 +21,6 @@ from torch.utils.data import ConcatDataset
 from torch.utils.data import DataLoader, Subset
 import torch
 from torchvision import transforms
-from Dataset.utk_data_loader import UTKFaceDataset
 from celebA_data_loader import CelebAGenderDataset
 from utils import tester
 parser = argparse.ArgumentParser()

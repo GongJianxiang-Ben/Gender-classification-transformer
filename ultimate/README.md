@@ -6,6 +6,7 @@ This repository contains several stages of experiments for age and gender classi
 
 The repository currently includes:
 
+- `resnet/`: earlier ResNet-18 CNN experiments and architectural variants
 - `head/`: single-task head-architecture comparison for CNN and ViT
 - `Multitask/`: age and gender multi-task learning baselines
 - `Vit/`: earlier ViT experiments and model variants
@@ -22,6 +23,7 @@ repo_root/
 │   ├── fold_2_data.txt
 │   ├── fold_3_data.txt
 │   └── fold_4_data.txt
+├── resnet/
 ├── Multitask/
 │   ├── resnet_multi.py
 │   └── vit_multi.py
@@ -261,7 +263,90 @@ torchrun --nproc_per_node=2 ultimate/train_ultimate.py --arch vit --epochs 50 --
 
 ---
 
-## 4. ViT Legacy Experiments
+## 4. ResNet Legacy Experiments
+
+The `resnet/` folder contains earlier ResNet-18 CNN experiments for gender classification, including pre-training, Adience fine-tuning, architectural variants, multitask learning, and cross-dataset evaluation.
+
+### Overview
+
+Pipeline:
+CelebA pre-training -> Adience fine-tuning -> Architectural modifications -> Multi-task learning -> UTKFace evaluation
+
+### Results
+
+#### Pre-training Comparison
+
+| Model | Adience Test Acc (Fold 0) | F1 | UTKFace Acc |
+|---|---:|---:|---:|
+| Scratch | 93.47% | 0.9361 | 76.92% |
+| CelebA pretrained | 93.52% | 0.9365 | 76.52% |
+| ImageNet + Combined | N/A* | — | 83.59% |
+
+#### Architectural Modifications
+
+| Model | Adience Test Acc | F1 | UTKFace Acc |
+|---|---:|---:|---:|
+| Vanilla | 93.52% | 0.9368 | 76.78% |
+| Dilated Conv (d=2) | 92.67% | 0.9279 | 75.32% |
+| Deformable Conv | 94.12% | 0.9431 | 78.36% |
+
+### Main Files
+
+| File | Description |
+|---|---|
+| `resnet18.py` | ResNet-18 built from scratch |
+| `resnet18_dilated.py` | Dilated convolution variant |
+| `resnet18_deformable.py` | Deformable convolution variant |
+| `celeba_finetune.py` | CelebA gender pre-training |
+| `adience_finetune_folds_v2.py` | Adience fine-tuning |
+| `train_variants_v2.py` | Train dilated/deformable variants |
+| `train_combined.py` | ImageNet pretrained + Adience + CelebA combined training |
+| `multitask_train.py` | Multi-task gender + age training |
+| `eval_fold0.py` | Evaluation on Adience fold 0 and UTKFace |
+| `utk_data_loader.py` | UTKFace dataset loader |
+| `gradcam.py` | Grad-CAM visualization |
+| `prepare_data.py` | Adience data preparation |
+
+### Example Usage
+
+> Modify dataset and checkpoint paths before running.
+
+```bash
+python resnet/celeba_finetune.py \
+  --img_dir ./celeba_data/img_align_celeba/img_align_celeba \
+  --attr_file ./celeba_data/list_attr_celeba.csv \
+  --split_file ./celeba_data/list_eval_partition.csv \
+  --output celeba_scratch.pth
+```
+
+```bash
+python resnet/adience_finetune_folds_v2.py \
+  --img_dir ./audience_data/AdienceBenchmarkGenderAndAgeClassification/faces \
+  --label_dir ./audience_data/AdienceBenchmarkGenderAndAgeClassification \
+  --checkpoint ./celeba_scratch.pth \
+  --output adience_celeba_fold0.pth
+```
+
+```bash
+python resnet/train_variants_v2.py \
+  --img_dir ./audience_data/AdienceBenchmarkGenderAndAgeClassification/faces \
+  --label_dir ./audience_data/AdienceBenchmarkGenderAndAgeClassification \
+  --checkpoint ./celeba_scratch.pth \
+  --variant dilated \
+  --output adience_dilated_v2.pth
+```
+
+```bash
+python resnet/eval_fold0.py \
+  --adience_dir ./audience_data/AdienceBenchmarkGenderAndAgeClassification \
+  --utk_dir ./utkface_data/utkface_aligned_cropped/UTKFace \
+  --checkpoint ./adience_celeba_fold0.pth \
+  --label "ResNet18_CelebA"
+```
+
+---
+
+## 5. ViT Legacy Experiments
 
 The `Vit/` folder contains earlier ViT experiments and model variants.
 

@@ -1,0 +1,26 @@
+name: sc4001
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy=1.26.4
+  - setuptools=69.5.1
+  - tqdm=4.66.4
+  - pytorch-cuda=11.8
+  - pip:
+    - --index-url https://download.pytorch.org/whl/cu118
+    - pytorch=2.2.2
+    - torchvision=0.17.2
+    - lightning
+    - torchinfo
+    - torchmetrics
+    - transformers==4.40.0
+    - pytorch-lightning==2.2.4
+    - torchmetrics==1.3.2
+    - Pillow==10.3.0
+    - accelerate==0.29.3
+    - scikit-learn

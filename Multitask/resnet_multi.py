@@ -13,7 +13,7 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset
 from tqdm.auto import tqdm
 from torchvision import transforms
 
-from resnet18 import BasicBlock, ResNet
+from head.cnn.resnet18 import BasicBlock, ResNet
 
 
 AGE_GROUP_NAMES = ["0-2", "4-6", "8-13", "15-20", "25-32", "38-43", "48-53", "60+"]

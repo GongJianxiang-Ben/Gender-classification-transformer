@@ -1,0 +1,344 @@
+import argparse
+import random
+from pathlib import Path
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from PIL import Image
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
+from tqdm.auto import tqdm
+from torchvision import transforms
+
+from resnet18 import BasicBlock, ResNet
+from resnet18_dilated import ResNet18Dilated
+from resnet18_deformable import ResNet18Deformable
+
+
+def seed_everything(seed=42):
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+class AdienceGenderDataset(Dataset):
+    def __init__(self, img_dir, txt_file, transform=None):
+        self.img_dir = Path(img_dir)
+        self.transform = transform
+        self.gender_to_idx = {"f": 0, "m": 1}
+        self.samples = []
+
+        with Path(txt_file).open("r", encoding="utf-8") as f:
+            next(f, None)
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) < 5:
+                    continue
+                user_id = parts[0]
+                original_image = parts[1]
+                face_id = parts[2]
+                if parts[3] == "None":
+                    continue
+                gender = parts[5] if parts[4].endswith(")") and len(parts) > 5 else parts[4]
+                gender = gender.strip().lower()
+                if gender not in self.gender_to_idx:
+                    continue
+                img_name = f"coarse_tilt_aligned_face.{face_id}.{original_image}"
+                img_path = self.img_dir / user_id / img_name
+                if img_path.exists():
+                    self.samples.append((str(img_path), self.gender_to_idx[gender]))
+
+        female_count = sum(1 for _, label in self.samples if label == 0)
+        male_count = len(self.samples) - female_count
+        print(f"Loaded {len(self.samples)} samples from {Path(txt_file).name} | "
+              f"Female: {female_count} | Male: {male_count}")
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img_path, label = self.samples[idx]
+        image = Image.open(img_path).convert("RGB")
+        if self.transform:
+            image = self.transform(image)
+        return image, label
+
+
+class EmptyDataset(Dataset):
+    def __len__(self):
+        return 0
+    def __getitem__(self, index):
+        raise IndexError("Empty dataset")
+
+
+def build_concat_dataset(img_dir, fold_files, transform):
+    dataset = EmptyDataset()
+    for fold_file in fold_files:
+        dataset = ConcatDataset([dataset,
+            AdienceGenderDataset(img_dir=img_dir, txt_file=fold_file, transform=transform)])
+    return dataset
+
+
+def compute_binary_f1(preds, labels):
+    preds = preds.long()
+    labels = labels.long()
+    tp = ((preds == 1) & (labels == 1)).sum().item()
+    fp = ((preds == 1) & (labels == 0)).sum().item()
+    fn = ((preds == 0) & (labels == 1)).sum().item()
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    if precision + recall == 0:
+        return 0.0
+    return 2 * precision * recall / (precision + recall)
+
+
+def evaluate(model, loader, criterion, device, desc="Val"):
+    model.eval()
+    total_loss, correct, total = 0.0, 0, 0
+    all_preds, all_labels = [], []
+
+    with torch.no_grad():
+        progress = tqdm(loader, desc=desc, leave=False, dynamic_ncols=True)
+        for imgs, labels in progress:
+            imgs   = imgs.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+            outputs = model(imgs)
+            preds   = outputs.argmax(dim=1)
+            loss    = criterion(outputs, labels)
+            total_loss += loss.item() * imgs.size(0)
+            correct    += (preds == labels).sum().item()
+            total      += imgs.size(0)
+            all_preds.append(preds.cpu())
+            all_labels.append(labels.cpu())
+            if total > 0:
+                progress.set_postfix(
+                    loss=f"{total_loss/total:.4f}",
+                    acc=f"{correct/total:.4f}")
+
+    if total == 0:
+        raise RuntimeError("Loader is empty.")
+    all_preds  = torch.cat(all_preds)
+    all_labels = torch.cat(all_labels)
+    return {
+        "loss": total_loss / total,
+        "acc":  correct / total,
+        "f1":   compute_binary_f1(all_preds, all_labels),
+    }
+
+
+def train_one_epoch(model, loader, optimizer, criterion, device, desc="Train"):
+    model.train()
+    total_loss, correct, total = 0.0, 0, 0
+    progress = tqdm(loader, desc=desc, leave=False, dynamic_ncols=True)
+    for imgs, labels in progress:
+        imgs   = imgs.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
+        optimizer.zero_grad()
+        outputs = model(imgs)
+        loss    = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item() * imgs.size(0)
+        correct    += (outputs.argmax(dim=1) == labels).sum().item()
+        total      += imgs.size(0)
+        if total > 0:
+            progress.set_postfix(
+                loss=f"{total_loss/total:.4f}",
+                acc=f"{correct/total:.4f}",
+                lr=f"{optimizer.param_groups[0]['lr']:.2e}")
+    if total == 0:
+        raise RuntimeError("Training loader is empty.")
+    return total_loss / total, correct / total
+
+
+def load_checkpoint(model, checkpoint_path, device):
+    state = torch.load(checkpoint_path, map_location=device)
+    # handle nested state dicts
+    for key in ("state_dict", "model_state_dict", "model", "net"):
+        if isinstance(state.get(key), dict):
+            state = state[key]
+            break
+    # strip common prefixes
+    normalized = {}
+    for k, v in state.items():
+        new_k = k
+        for prefix in ("module.", "model.", "backbone."):
+            if new_k.startswith(prefix):
+                new_k = new_k[len(prefix):]
+        normalized[new_k] = v
+
+    model_state = model.state_dict()
+    compatible = {k: v for k, v in normalized.items()
+                  if k in model_state and model_state[k].shape == v.shape}
+    skipped = [k for k in normalized if k not in compatible]
+    missing = sorted(set(model_state.keys()) - set(compatible.keys()))
+    model.load_state_dict(compatible, strict=False)
+    print(f"Loaded {len(compatible)} tensors from {checkpoint_path}")
+    if skipped:
+        print(f"Skipped {len(skipped)} incompatible tensors")
+    if missing:
+        print(f"Randomly initialized {len(missing)} tensors")
+
+
+def get_model(variant):
+    if variant == "dilated":
+        return ResNet18Dilated(img_channels=3, num_classes=2)
+    elif variant == "deformable":
+        return ResNet18Deformable(img_channels=3, num_classes=2)
+    else:
+        return ResNet(img_channels=3, num_layers=18, block=BasicBlock, num_classes=2)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--img_dir",       type=str, required=True)
+    parser.add_argument("--label_dir",     type=str, required=True)
+    parser.add_argument("--checkpoint",    type=str, default=None)
+    parser.add_argument("--variant",       type=str, default="vanilla",
+                        choices=["vanilla", "dilated", "deformable"])
+    parser.add_argument("--phase1_epochs", type=int, default=10)
+    parser.add_argument("--phase2_epochs", type=int, default=40)
+    parser.add_argument("--batch_size",    type=int, default=32)
+    parser.add_argument("--lr_phase1",     type=float, default=1e-3)
+    parser.add_argument("--lr_phase2",     type=float, default=1e-5)
+    parser.add_argument("--output",        type=str, default="adience_finetuned.pth")
+    parser.add_argument("--seed",          type=int, default=42)
+    parser.add_argument("--num_workers",   type=int, default=4)
+    args = parser.parse_args()
+
+    seed_everything(args.seed)
+
+    img_dir   = Path(args.img_dir).resolve()
+    label_dir = Path(args.label_dir).resolve()
+    fold_files = [label_dir / f"fold_{i}_data.txt" for i in range(5)]
+
+    # folds 1-4 train, fold 0 val+test
+    train_folds = fold_files[1:]
+    val_folds   = [fold_files[0]]
+    test_folds  = [fold_files[0]]
+
+    train_tf = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(10),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+        transforms.RandomGrayscale(p=0.1),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+    eval_tf = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+
+    print(f"Variant: {args.variant}")
+    print(f"Train folds: {[p.name for p in train_folds]}")
+    print(f"Val/Test fold: {[p.name for p in val_folds]}")
+
+    print("Loading train folds...")
+    train_ds = build_concat_dataset(img_dir, train_folds, train_tf)
+    print("Loading val/test fold...")
+    val_ds   = build_concat_dataset(img_dir, val_folds,   eval_tf)
+    test_ds  = build_concat_dataset(img_dir, test_folds,  eval_tf)
+
+    device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
+    if device.type == "cuda":
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+
+    pin_memory = device.type == "cuda"
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
+                              num_workers=args.num_workers, pin_memory=pin_memory)
+    val_loader   = DataLoader(val_ds,   batch_size=args.batch_size, shuffle=False,
+                              num_workers=args.num_workers, pin_memory=pin_memory)
+    test_loader  = DataLoader(test_ds,  batch_size=args.batch_size, shuffle=False,
+                              num_workers=args.num_workers, pin_memory=pin_memory)
+
+    model = get_model(args.variant).to(device)
+    if args.checkpoint:
+        load_checkpoint(model, args.checkpoint, device="cpu")
+    else:
+        print("Training from scratch")
+
+    criterion    = nn.CrossEntropyLoss()
+    best_val_acc = -1.0
+    output_path  = Path(args.output)
+
+    # Phase 1: freeze backbone
+    print(f"\n{'='*50}")
+    print(f"PHASE 1: FC head only | LR={args.lr_phase1} | Epochs={args.phase1_epochs}")
+    print(f"{'='*50}")
+
+    for name, param in model.named_parameters():
+        param.requires_grad = name.startswith("fc.")
+
+    optimizer1 = optim.Adam(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=args.lr_phase1, weight_decay=1e-4)
+    scheduler1 = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer1, T_max=max(args.phase1_epochs, 1))
+
+    for epoch in range(1, args.phase1_epochs + 1):
+        print(f"\n[Phase1] Epoch {epoch:02d}/{args.phase1_epochs}", flush=True)
+        train_loss, train_acc = train_one_epoch(
+            model, train_loader, optimizer1, criterion, device,
+            desc=f"Phase1 Train {epoch:02d}/{args.phase1_epochs}")
+        val_metrics = evaluate(model, val_loader, criterion, device,
+            desc=f"Phase1 Val {epoch:02d}/{args.phase1_epochs}")
+        scheduler1.step()
+        print(f"[Phase1] Epoch [{epoch:02d}/{args.phase1_epochs}] "
+              f"Train Loss: {train_loss:.4f} Acc: {train_acc:.4f} | "
+              f"Val Loss: {val_metrics['loss']:.4f} Acc: {val_metrics['acc']:.4f} "
+              f"F1: {val_metrics['f1']:.4f}", flush=True)
+        if val_metrics["acc"] > best_val_acc:
+            best_val_acc = val_metrics["acc"]
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(model.state_dict(), output_path)
+            print(f"  Saved best model (val_acc={val_metrics['acc']:.4f})", flush=True)
+
+    # Phase 2: unfreeze all
+    print(f"\n{'='*50}")
+    print(f"PHASE 2: All layers | LR={args.lr_phase2} | Epochs={args.phase2_epochs}")
+    print(f"{'='*50}")
+
+    for param in model.parameters():
+        param.requires_grad = True
+
+    optimizer2 = optim.Adam(model.parameters(), lr=args.lr_phase2, weight_decay=1e-4)
+    scheduler2 = optim.lr_scheduler.CosineAnnealingLR(
+        optimizer2, T_max=max(args.phase2_epochs, 1))
+
+    for epoch in range(1, args.phase2_epochs + 1):
+        print(f"\n[Phase2] Epoch {epoch:02d}/{args.phase2_epochs}", flush=True)
+        train_loss, train_acc = train_one_epoch(
+            model, train_loader, optimizer2, criterion, device,
+            desc=f"Phase2 Train {epoch:02d}/{args.phase2_epochs}")
+        val_metrics = evaluate(model, val_loader, criterion, device,
+            desc=f"Phase2 Val {epoch:02d}/{args.phase2_epochs}")
+        scheduler2.step()
+        print(f"[Phase2] Epoch [{epoch:02d}/{args.phase2_epochs}] "
+              f"Train Loss: {train_loss:.4f} Acc: {train_acc:.4f} | "
+              f"Val Loss: {val_metrics['loss']:.4f} Acc: {val_metrics['acc']:.4f} "
+              f"F1: {val_metrics['f1']:.4f}", flush=True)
+        if val_metrics["acc"] > best_val_acc:
+            best_val_acc = val_metrics["acc"]
+            torch.save(model.state_dict(), output_path)
+            print(f"  Saved best model (val_acc={val_metrics['acc']:.4f})", flush=True)
+
+    # Final test
+    print("\nRunning final test on held-out fold 0...")
+    model.load_state_dict(torch.load(output_path, map_location=device))
+    test_metrics = evaluate(model, test_loader, criterion, device, desc="Test")
+    print(f"Best checkpoint: {output_path}")
+    print(f"Gender Acc (%): {test_metrics['acc']*100:.2f}")
+    print(f"Gender F1: {test_metrics['f1']:.4f}")
+    print(f"Variant: {args.variant}")
+
+
+if __name__ == "__main__":
+    main()

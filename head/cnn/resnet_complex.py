@@ -1,7 +1,7 @@
 import torch.nn as nn
 
-from dlj.head.head.cnn.resnet import run_training
-from dlj.head.head.cnn.resnet18 import BasicBlock, ResNet
+from head.cnn.resnet import run_training
+from head.cnn.resnet18 import BasicBlock, ResNet
 
 
 def build_complex_model():

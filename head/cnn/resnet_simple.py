@@ -1,4 +1,4 @@
-from dlj.head.head.cnn.resnet import build_simple_model, run_training
+from head.cnn.resnet import build_simple_model, run_training
 
 
 def main():
